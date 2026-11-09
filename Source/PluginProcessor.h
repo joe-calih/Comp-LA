@@ -48,6 +48,12 @@ public:
     juce::StringArray getUserPresetNames() const;
     bool saveUserPreset (const juce::String& name);
     bool loadUserPreset (const juce::String& name);
+    bool exportPresetTo (const juce::File& f);
+    bool importPresetFrom (const juce::File& f, bool applyIt);
+    juce::String stateToString();
+    bool applyStateString (const juce::String& xmlText);
+    juce::String presetNote;
+    std::atomic<bool> testTone { false };
     void toggleAB();
     int  getActiveSlot() const { return activeSlot; }
 
@@ -66,6 +72,7 @@ private:
     double fs = 44100.0;
     std::array<juce::dsp::IIR::Filter<float>, 2> scShelf;
     float lastLf = -1.f;
+    double tonePhase = 0.0, toneLfo = 0.0; bool toneInit = false;
 
     float env[2] { 0, 0 }, gr[2] { 0, 0 }, mem[2] { 0, 0 };
     float dcX[2] { 0, 0 }, dcY[2] { 0, 0 };

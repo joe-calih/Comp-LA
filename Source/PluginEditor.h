@@ -24,6 +24,13 @@ private:
     float needle = 0.f; bool grMode = false;
 };
 
+class HamburgerButton : public juce::Button
+{
+public:
+    HamburgerButton() : juce::Button ({}) {}
+    void paintButton (juce::Graphics&, bool, bool) override;
+};
+
 class PowerButton : public juce::Button
 {
 public:
@@ -50,6 +57,7 @@ private:
     void setMeterMode (int m);
     void showMainMenu();
     void showAbout();
+    void promptNote();
     void setupKnob (juce::Slider&, const char* id, const char* labels, int minor, juce::Rectangle<int> b,
                     const char* suffix, double def);
 
@@ -66,7 +74,12 @@ private:
     juce::ComboBox presetBox;
     juce::TextButton prevBtn { "<" }, nextBtn { ">" }, saveBtn { "SAVE" }, saveAsBtn { "SAVE AS" },
                      aBtn { "A" }, bBtn { "B" }, abArrow { ">" }, undoBtn { "UNDO" }, redoBtn { "REDO" },
-                     menuBtn { "MENU" };
+                     menuBtnUnused { "" };
+    HamburgerButton menuBtn;
+    std::unique_ptr<juce::FileChooser> chooser;
+    juce::TooltipWindow tooltip { this, 600 };
+    bool lastDark = false;
+    float uiScale = 1.0f;
     juce::TextButton meterBtn[4] { juce::TextButton ("IN"), juce::TextButton ("GR"),
                                    juce::TextButton ("OUT"), juce::TextButton ("HAR") };
     juce::StringArray userNames;

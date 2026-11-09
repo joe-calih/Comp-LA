@@ -20,6 +20,8 @@ inline juce::Font uiFont (float h, bool bold = false)
 class LevelerLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
+    bool upperDark = false;   // true while Solid State (3A) is selected: upper half goes dark
+
     LevelerLookAndFeel()
     {
         setColour (juce::TextButton::buttonColourId, juce::Colour (0xff222222));
@@ -30,12 +32,14 @@ public:
         setColour (juce::ComboBox::textColourId, juce::Colours::white);
         setColour (juce::ComboBox::outlineColourId, juce::Colour (0xff1a1a1a));
         setColour (juce::ComboBox::arrowColourId, juce::Colours::white);
-        setColour (juce::PopupMenu::backgroundColourId, juce::Colour (0xff1c1c1c));
+        setColour (juce::PopupMenu::backgroundColourId, juce::Colour (0xff1a1a1a));
+        setColour (juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
         setColour (juce::PopupMenu::textColourId, juce::Colours::white);
         setColour (juce::PopupMenu::highlightedBackgroundColourId, col::accent);
     }
 
     juce::Font getComboBoxFont (juce::ComboBox&) override { return uiFont (19.f); }
+    juce::Font getPopupMenuFont() override { return uiFont (15.f); }
     juce::Font getTextButtonFont (juce::TextButton&, int) override { return uiFont (11.f, true); }
 
     void drawComboBox (juce::Graphics& g, int w, int h, bool, int, int, int, int, juce::ComboBox&) override
@@ -94,7 +98,8 @@ public:
         const auto labels = StringArray::fromTokens (s.getProperties().getWithDefault ("labels", "").toString(), "|", "");
         const int nMajor = labels.size();
         const int minorPerMajor = (int) s.getProperties().getWithDefault ("minor", 1);
-        g.setColour (col::ink);
+        const bool light = upperDark && s.getProperties().contains ("upper");
+        g.setColour (light ? juce::Colour (0xffeeeeee) : col::ink);
         if (nMajor > 1)
         {
             const int total = (nMajor - 1) * minorPerMajor;

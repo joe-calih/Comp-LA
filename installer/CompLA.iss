@@ -1,6 +1,6 @@
 ; Inno Setup script - builds CompLA-Setup.exe (installs the VST3 plugin and the standalone app)
 #define MyAppName "Comp LA"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "2.0.0"
 #define MyAppPublisher "Loops"
 #define MyAppURL "https://loops.co.ke"
 

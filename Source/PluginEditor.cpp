@@ -7,8 +7,8 @@ namespace
     constexpr float kDeg = MathConstants<float>::pi / 180.f;
 
     struct VuPt { float db, f; };
-    constexpr VuPt vuTable[] = { { -20, 0.00f }, { -10, 0.28f }, { -7, 0.43f }, { -5, 0.53f }, { -3, 0.63f },
-                                 { -1, 0.73f }, { 0, 0.79f }, { 1, 0.85f }, { 2, 0.91f }, { 3, 1.00f } };
+    constexpr VuPt vuTable[] = { { -20, 0.00f }, { -10, 0.23f }, { -7, 0.35f }, { -5, 0.45f }, { -3, 0.55f },
+                                 { -1, 0.64f }, { 0, 0.71f }, { 1, 0.79f }, { 2, 0.89f }, { 3, 1.00f } };
 
     float vuToPos (float db)
     {
@@ -62,6 +62,18 @@ void ToggleSwitch::paintButton (Graphics& g, bool, bool)
     g.setGradientFill (ball); g.fillEllipse (c.x - 6.5f, c.y + len - 6.5f, 13.f, 13.f);
 }
 
+void HamburgerButton::paintButton (Graphics& g, bool over, bool down)
+{
+    auto b = getLocalBounds().toFloat().reduced (1.f);
+    g.setColour (down ? Colour (0xff3a3a3a) : over ? Colour (0xff2a2a2a) : Colour (0xff1a1a1a));
+    g.fillRoundedRectangle (b, 4.f);
+    g.setColour (Colour (0xff6a6a6a)); g.drawRoundedRectangle (b, 4.f, 1.2f);
+    const auto c = b.getCentre();
+    g.setColour (Colours::white);
+    for (int i = -1; i <= 1; ++i)
+        g.fillRoundedRectangle (c.x - 11.f, c.y + (float) i * 7.f - 1.5f, 22.f, 3.f, 1.5f);
+}
+
 void PowerButton::paintButton (Graphics& g, bool, bool)
 {
     auto b = getLocalBounds().toFloat();
@@ -82,48 +94,48 @@ void VUMeter::paint (Graphics& g)
     g.setColour (Colour (0xff3b3b3b)); g.drawRoundedRectangle (b.reduced (1.f), 9.f, 1.5f);
     auto face = b.reduced (8.f);
 
-    ColourGradient lamp (Colour (0xfffbe39a), face.getCentreX(), face.getBottom(),
-                         Colour (0xffc98a28), face.getX(), face.getY(), true);
-    g.setGradientFill (lamp); g.fillRoundedRectangle (face, 3.f);
+    { ColourGradient lamp (Colour (0xfffff3bd), face.getCentreX(), face.getBottom() + 6.f,
+                           Colour (0xff9c600f), face.getX() - 6.f, face.getY(), true);
+      lamp.addColour (0.35, Colour (0xfff7c457)); lamp.addColour (0.70, Colour (0xffd9902b));
+      g.setGradientFill (lamp); g.fillRoundedRectangle (face, 3.f); }
 
     Graphics::ScopedSaveState ss (g);
     g.reduceClipRegion (face.toNearestInt());
 
     const Point<float> pivot (face.getCentreX(), face.getBottom() + face.getHeight() * 0.45f);
     const float r1 = pivot.y - (face.getY() + 20.f);
-    auto at = [&] (float f, float r) { const float a = (f - 0.5f) * 76.f * kDeg;
+    auto at = [&] (float f, float r) { const float a = (f - 0.5f) * 100.f * kDeg;
                                        return Point<float> (pivot.x + r * std::sin (a), pivot.y - r * std::cos (a)); };
 
     // red zone
-    { Path red; const float a0 = (vuToPos (0.f) - 0.5f) * 76.f * kDeg, a1 = 38.f * kDeg;
+    { Path red; const float a0 = (vuToPos (0.f) - 0.5f) * 100.f * kDeg, a1 = 50.f * kDeg;
       red.addCentredArc (pivot.x, pivot.y, r1 + 4.f, r1 + 4.f, 0.f, a0, a1, true);
       g.setColour (Colour (0xffb5281f)); g.strokePath (red, PathStrokeType (5.f)); }
 
     g.setColour (Colour (0xff2a1a05));
-    { Path arc; arc.addCentredArc (pivot.x, pivot.y, r1 + 1.f, r1 + 1.f, 0.f, -38.f * kDeg, 38.f * kDeg, true);
+    { Path arc; arc.addCentredArc (pivot.x, pivot.y, r1 + 1.f, r1 + 1.f, 0.f, -50.f * kDeg, 50.f * kDeg, true);
       g.strokePath (arc, PathStrokeType (1.2f)); }
 
-    g.setFont (uiFont (8.f, true));
+    g.setFont (uiFont (7.5f, true));
     for (auto& t : vuTable)
     {
         const bool red = t.db > 0.5f;
         g.setColour (red ? Colour (0xffa01e17) : Colour (0xff2a1a05));
         g.drawLine ({ at (t.f, r1 - 5.f), at (t.f, r1 + 1.f) }, 1.3f);
         auto txt = (t.db > 0 ? "+" : "") + String ((int) t.db);
-        if (t.db == -1.f) continue;
-        g.drawText (txt, Rectangle<float> (26.f, 11.f).withCentre (at (t.f, r1 - 14.f)), Justification::centred, false);
+                g.drawText (txt, Rectangle<float> (26.f, 11.f).withCentre (at (t.f, r1 - 14.f)), Justification::centred, false);
     }
     const float r2 = r1 - 30.f;
     g.setColour (Colour (0xff2a1a05));
     for (int p = 0; p <= 100; p += 10)
     {
-        const float f = (float) p / 100.f * 0.92f;
+        const float f = 0.07f + (float) p / 100.f * (vuToPos (0.f) - 0.07f);   // 100 % lines up with 0 VU
         g.drawLine ({ at (f, r2), at (f, r2 + (p % 20 == 0 ? 5.f : 3.f)) }, 1.0f);
         if (p % 20 == 0)
             g.drawText (String (p), Rectangle<float> (24.f, 10.f).withCentre (at (f, r2 - 8.f)), Justification::centred, false);
     }
     g.setFont (uiFont (13.f, true));
-    g.drawText ("VU", Rectangle<float> (30.f, 16.f).withCentre ({ face.getRight() - 22.f, face.getBottom() - 11.f }),
+    g.drawText ("VU", Rectangle<float> (30.f, 16.f).withCentre ({ face.getRight() - 20.f, face.getY() + 13.f }),
                 Justification::centred, false);
 
     // needle
@@ -170,6 +182,7 @@ LALevelerAudioProcessorEditor::LALevelerAudioProcessorEditor (LALevelerAudioProc
     setupKnob (parallel, "parallel", "~|~|~|~|~|~|~|~|~|~|~", 1, { 628, 275, 104, 104 }, " %", 100.0);
     setupKnob (harm, "harm", "~", 1, { 528, 270, 46, 46 }, "", 0.25);
     setupKnob (lf, "lfsens", "~", 1, { 528, 337, 46, 46 }, " dB", 0.0);
+    gain.getProperties().set ("upper", true); peak.getProperties().set ("upper", true);
     harm.getProperties().set ("arrowKnob", true); lf.getProperties().set ("arrowKnob", true);
     harm.setRotaryParameters (-90.f * kDeg, 90.f * kDeg, true);
 
@@ -192,10 +205,10 @@ LALevelerAudioProcessorEditor::LALevelerAudioProcessorEditor (LALevelerAudioProc
     saveBtn.setBounds (424, 5, 52, 32);  saveAsBtn.setBounds (480, 5, 68, 32);
     aBtn.setBounds (562, 5, 32, 32);     abArrow.setBounds (596, 5, 24, 32);  bBtn.setBounds (622, 5, 32, 32);
     undoBtn.setBounds (662, 5, 38, 32);  redoBtn.setBounds (702, 5, 38, 32);
-    menuBtn.setBounds (940, 3, 32, 36);
-    menuBtn.setButtonText (String::fromUTF8 ("\xE2\x89\xA1"));
-    for (auto* b : { &prevBtn, &nextBtn, &saveBtn, &saveAsBtn, &aBtn, &bBtn, &abArrow, &undoBtn, &redoBtn, &menuBtn })
+    menuBtn.setBounds (932, 3, 42, 36);
+    for (auto* b : { &prevBtn, &nextBtn, &saveBtn, &saveAsBtn, &aBtn, &bBtn, &abArrow, &undoBtn, &redoBtn })
         addAndMakeVisible (b);
+    addAndMakeVisible (menuBtn);
     addAndMakeVisible (presetBox);
     for (auto* b : { &aBtn, &bBtn }) b->setClickingTogglesState (false);
 
@@ -233,6 +246,7 @@ LALevelerAudioProcessorEditor::LALevelerAudioProcessorEditor (LALevelerAudioProc
     redoBtn.onClick = [this] { proc.undoManager.redo(); };
     menuBtn.onClick = [this] { showMainMenu(); };
 
+    lastDark = proc.apvts.getRawParameterValue ("tube")->load() < 0.5f; laf.upperDark = lastDark;
     buildPresetMenu();
     startTimerHz (30);
 }
@@ -296,35 +310,106 @@ void LALevelerAudioProcessorEditor::setMeterMode (int m)
 
 void LALevelerAudioProcessorEditor::showMainMenu()
 {
+    const float scale = uiScale;
+    PopupMenu size;
+    size.addItem (10, "75%",  true, std::abs (scale - 0.75f) < 0.01f);
+    size.addItem (11, "100%", true, std::abs (scale - 1.0f) < 0.01f);
+    size.addItem (12, "125%", true, std::abs (scale - 1.25f) < 0.01f);
+    size.addItem (13, "150%", true, std::abs (scale - 1.5f) < 0.01f);
+
+    PopupMenu pref;
+    pref.addSubMenu ("Window size", size);
+    pref.addItem (37, "Test tone (checks the meters)", true, proc.testTone.load());
+    pref.addSeparator();
+    pref.addItem (1, "Reset all controls to default");
+    pref.addItem (2, "Open user preset folder");
+
+    PopupMenu auth;
+    auth.addItem (38, "Status: free - no activation needed", false);
+    auth.addItem (31, "License terms (loops.co.ke)");
+
+    const auto clip = SystemClipboard::getTextFromClipboard();
+    const bool canPaste = parseXML (clip) != nullptr;
+
     PopupMenu m;
-    m.addItem (1, "Reset all controls to default");
-    m.addItem (2, "Open user preset folder");
+    m.addItem (20, "Ver. 2.0.0 (VST3, Intel 64-bit)");
+    m.addItem (30, "Manual");
+    m.addSubMenu ("Preferences", pref);
+    m.addSubMenu ("Authorization", auth);
+    m.addItem (32, proc.presetNote.isEmpty() ? "Add Note" : "Edit Note");
     m.addSeparator();
-    m.addItem (10, "Size 75%"); m.addItem (11, "Size 100%"); m.addItem (12, "Size 125%"); m.addItem (13, "Size 150%");
+    m.addItem (33, "Copy current state");
+    m.addItem (34, "Paste current state", canPaste);
     m.addSeparator();
-    m.addItem (20, "About Comp LA / Loops");
+    m.addItem (35, "Export...");
+    m.addItem (36, "Import preset(s)");
+    m.addSeparator();
     m.addItem (21, "Visit loops.co.ke");
-    m.showMenuAsync (PopupMenu::Options().withTargetComponent (&menuBtn), [this] (int r)
+
+    m.showMenuAsync (PopupMenu::Options().withTargetComponent (&menuBtn).withMinimumWidth (250), [this] (int r)
     {
-        if (r == 1)
+        switch (r)
         {
-            proc.undoManager.beginNewTransaction();
-            for (auto* prm : proc.getParameters())
-                if (auto* rp = dynamic_cast<RangedAudioParameter*> (prm))
-                    if (rp->paramID != "meter") rp->setValueNotifyingHost (rp->getDefaultValue());
-            proc.currentPresetName = "Initial Preset"; buildPresetMenu();
+            case 1:
+                proc.undoManager.beginNewTransaction();
+                for (auto* prm : proc.getParameters())
+                    if (auto* rp = dynamic_cast<RangedAudioParameter*> (prm))
+                        if (rp->paramID != "meter") rp->setValueNotifyingHost (rp->getDefaultValue());
+                proc.currentPresetName = "Initial Preset"; proc.presetNote = {}; buildPresetMenu(); break;
+            case 2: { auto d = proc.getUserPresetDir(); d.createDirectory(); d.revealToUser(); break; }
+            case 10: uiScale = 0.75f; setScaleFactor (0.75f); break;  case 11: uiScale = 1.0f; setScaleFactor (1.0f); break;
+            case 12: uiScale = 1.25f; setScaleFactor (1.25f); break;  case 13: uiScale = 1.5f; setScaleFactor (1.5f); break;
+            case 20: showAbout(); break;
+            case 21: URL ("https://loops.co.ke").launchInDefaultBrowser(); break;
+            case 30: URL ("https://loops.co.ke/docs").launchInDefaultBrowser(); break;
+            case 31: URL ("https://loops.co.ke/licenses").launchInDefaultBrowser(); break;
+            case 32: promptNote(); break;
+            case 33: SystemClipboard::copyTextToClipboard (proc.stateToString()); break;
+            case 34: proc.applyStateString (SystemClipboard::getTextFromClipboard()); buildPresetMenu(); break;
+            case 35:
+            {
+                chooser = std::make_unique<FileChooser> ("Export preset", proc.getUserPresetDir().getChildFile (proc.currentPresetName + ".lalpreset"), "*.lalpreset");
+                chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::warnAboutOverwriting, [this] (const FileChooser& fc)
+                { auto f = fc.getResult(); if (f != File()) proc.exportPresetTo (f.withFileExtension ("lalpreset")); });
+                break;
+            }
+            case 36:
+            {
+                chooser = std::make_unique<FileChooser> ("Import preset(s)", File::getSpecialLocation (File::userDocumentsDirectory), "*.lalpreset");
+                chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectMultipleItems, [this] (const FileChooser& fc)
+                {
+                    auto res = fc.getResults(); bool first = true;
+                    for (auto& f : res)
+                    {
+                        auto dest = proc.getUserPresetDir().getChildFile (f.getFileName());
+                        proc.getUserPresetDir().createDirectory(); f.copyFileTo (dest);
+                        if (first) { proc.loadUserPreset (dest.getFileNameWithoutExtension()); first = false; }
+                    }
+                    buildPresetMenu();
+                });
+                break;
+            }
+            case 37: proc.testTone = ! proc.testTone.load(); break;
+            default: break;
         }
-        else if (r == 2) { auto d = proc.getUserPresetDir(); d.createDirectory(); d.revealToUser(); }
-        else if (r == 20) showAbout();
-        else if (r == 21) URL ("https://loops.co.ke").launchInDefaultBrowser();
-        else if (r >= 10 && r <= 13) setScaleFactor (r == 10 ? 0.75f : r == 11 ? 1.f : r == 12 ? 1.25f : 1.5f);
     });
+}
+
+void LALevelerAudioProcessorEditor::promptNote()
+{
+    auto* w = new AlertWindow ("Preset note", "Write a note for this setting (shown when you hover the preset name):", MessageBoxIconType::NoIcon, this);
+    w->addTextEditor ("note", proc.presetNote);
+    w->addButton ("OK", 1, KeyPress (KeyPress::returnKey));
+    w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
+    Component::SafePointer<LALevelerAudioProcessorEditor> safe (this);
+    w->enterModalState (true, ModalCallbackFunction::create ([safe, w] (int r)
+    { if (r == 1 && safe != nullptr) { safe->proc.presetNote = w->getTextEditorContents ("note"); safe->presetBox.setTooltip (safe->proc.presetNote); } }), true);
 }
 
 void LALevelerAudioProcessorEditor::showAbout()
 {
     auto* w = new AlertWindow ("About Comp LA",
-        "Comp LA 1.0  -  opto leveling compressor (2A / 3A style)\n"
+        "Comp LA 2.0  -  opto leveling compressor (2A / 3A style)\n"
         "Made by LOOPS\n\n"
         "LOOPS is a music-production platform for royalty-free sound packs, loops and one-shots, "
         "plugins, mastering and distribution, built for producers.\n\n"
@@ -342,15 +427,18 @@ void LALevelerAudioProcessorEditor::timerCallback()
     for (int i = 0; i < 4; ++i) meterBtn[i].setToggleState (i == mode, dontSendNotification);
     aBtn.setToggleState (proc.getActiveSlot() == 0, dontSendNotification);
     bBtn.setToggleState (proc.getActiveSlot() == 1, dontSendNotification);
+    { const bool dark = proc.apvts.getRawParameterValue ("tube")->load() < 0.5f;
+      if (dark != lastDark) { lastDark = dark; laf.upperDark = dark; repaint(); } }
+    presetBox.setTooltip (proc.presetNote);
     undoBtn.setEnabled (proc.undoManager.canUndo()); redoBtn.setEnabled (proc.undoManager.canRedo());
 
     float target = 0.f;
     switch (mode)
     {
-        case 0:  target = vuToPos (proc.meterIn.load()  + 14.f); break;
-        case 1:  target = jlimit (0.f, 1.f, proc.meterGR.load() / 20.f); break;
-        case 2:  target = vuToPos (proc.meterOut.load() + 14.f); break;
-        default: target = vuToPos (proc.meterHar.load() + 34.f); break;
+        case 0:  target = vuToPos (proc.meterIn.load()  + 18.f); break;
+        case 1:  target = jlimit (0.f, 1.f, 0.07f + proc.meterGR.load() / 20.f * (vuToPos (0.f) - 0.07f)); break;   // 0..100 % = 0..20 dB reduction
+        case 2:  target = vuToPos (proc.meterOut.load() + 18.f); break;
+        default: target = vuToPos (proc.meterHar.load() + 38.f); break;
     }
     needleSmooth += (target - needleSmooth) * 0.22f;
     vu.setGRMode (mode == 1); vu.setValue (needleSmooth);
@@ -365,7 +453,14 @@ void LALevelerAudioProcessorEditor::paint (Graphics& g)
     g.setColour (col::topBar); g.fillRect (0, 0, W, 43);
 
     // upper (light) and lower (silver) panels
-    g.setGradientFill (ColourGradient (col::panelHi, 0, 44, col::panelLo, 0, 247, false)); g.fillRect (0, 44, W, 203);
+    if (lastDark)
+    {
+        g.setGradientFill (ColourGradient (Colour (0xff2c2c2e), 0, 44, Colour (0xff0e0e0f), 0, 247, false)); g.fillRect (0, 44, W, 203);
+        Random rnd (7);                                           // fine brushed-metal grain
+        for (int y = 45; y < 246; y += 2) { g.setColour (Colour::fromFloatRGBA (1.f, 1.f, 1.f, 0.012f + rnd.nextFloat() * 0.03f)); g.fillRect (0, y, W, 1); }
+        g.setColour (Colour (0x30000000)); g.fillRect (0, 44, W, 2);
+    }
+    else { g.setGradientFill (ColourGradient (col::panelHi, 0, 44, col::panelLo, 0, 247, false)); g.fillRect (0, 44, W, 203); }
     g.setGradientFill (ColourGradient (col::silverHi, 0, 249, col::silverLo, 0, 413, false)); g.fillRect (0, 249, W, 164);
     g.setColour (Colour (0xff6f7173)); g.fillRect (0, 246, W, 3);
     g.setColour (Colour (0x66ffffff)); g.fillRect (0, 249, W, 1);
@@ -386,9 +481,11 @@ void LALevelerAudioProcessorEditor::paint (Graphics& g)
     auto label = [&g] (const String& t, float cx, float cy, float h = 11.5f, bool bold = true)
     { g.setFont (uiFont (h, bold)); g.drawText (t, Rectangle<float> (130.f, 16.f).withCentre ({ cx, cy }), Justification::centred, false); };
 
+    if (lastDark) g.setColour (Colour (0xffeeeeee));
     label ("LIMIT", 168, 158);  label ("COMPRESS", 168, 232);
     label ("GAIN", 300, 211, 13.f);
     label ("PEAK REDUCTION", 677, 211, 13.f);
+    g.setColour (col::ink);
 
     label ("TUBE (2A)", 166, 292);  label ("SOLID STATE (3A)", 166, 365);
     label ("IN LEVEL", 297, 392, 12.f);

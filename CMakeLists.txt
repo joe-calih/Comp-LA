@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")  # static CRT: no VC++ redistributable needed
-project(LALeveler VERSION 1.0.0 LANGUAGES C CXX)
+project(LALeveler VERSION 2.0.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -40,10 +40,11 @@ target_link_libraries(LALeveler
   PRIVATE juce::juce_audio_utils juce::juce_dsp
   PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 
+set(LAL_TEST_MAIN Tests/Snapshot.cpp CACHE STRING "test main")
 option(LAL_BUILD_TESTS "Build offscreen snapshot / DSP test tool" OFF)
 if(LAL_BUILD_TESTS)
   juce_add_console_app(LALSnapshot PRODUCT_NAME "LALSnapshot")
-  target_sources(LALSnapshot PRIVATE Tests/Snapshot.cpp Source/PluginProcessor.cpp Source/PluginEditor.cpp)
-  target_compile_definitions(LALSnapshot PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_STANDALONE_APPLICATION=1)
+  target_sources(LALSnapshot PRIVATE ${LAL_TEST_MAIN} Source/PluginProcessor.cpp Source/PluginEditor.cpp)
+  target_compile_definitions(LALSnapshot PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_STANDALONE_APPLICATION=1 JUCE_MODAL_LOOPS_PERMITTED=1)
   target_link_libraries(LALSnapshot PRIVATE juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags)
 endif()

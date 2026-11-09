@@ -24,7 +24,7 @@ AudioProcessorValueTreeState::ParameterLayout LALevelerAudioProcessor::createLay
     p.push_back (fl ("output", "Output", -15.f, 15.f, 0.f, 0.1f));
     p.push_back (fl ("parallel", "Parallel", 0.f, 100.f, 100.f, 0.1f));
     p.push_back (bl ("ms", "Mid-Side", false));
-    p.push_back (fl ("harm", "Harmonics", 0.f, 1.f, 0.25f, 0.001f));
+    p.push_back (fl ("harm", "Harmonics", 0.f, 1.f, 0.5f, 0.001f));   // 0 = Lin, 0.5 = Original, 1 = Dist
     p.push_back (fl ("lfsens", "LF Sens", 0.f, 10.f, 0.f, 0.1f));
     p.push_back (std::make_unique<AudioParameterChoice> (ParameterID { "meter", 1 }, "Meter",
                                                          StringArray { "IN", "GR", "OUT", "HAR" }, 1));
@@ -47,6 +47,7 @@ bool LALevelerAudioProcessor::isBusesLayoutSupported (const BusesLayout& l) cons
 void LALevelerAudioProcessor::prepareToPlay (double sampleRate, int)
 {
     fs = sampleRate;
+    if (! toneInit) { toneInit = true; if (wrapperType == wrapperType_Standalone) testTone = true; }  // standalone has no input: demo signal
     for (auto& f : scShelf) { f.reset(); }
     lastLf = -1.f;
     for (int i = 0; i < 2; ++i) { env[i] = gr[i] = mem[i] = dcX[i] = dcY[i] = 0.f; }
@@ -80,6 +81,18 @@ void LALevelerAudioProcessor::processBlock (AudioBuffer<float>& buf, MidiBuffer&
     {
         meterIn = meterOut = meterHar = -100.f; meterGR = 0.f;
         return;
+    }
+
+    if (testTone.load())      // built-in demo signal (standalone has no input; also handy to check the meters)
+    {
+        for (int i = 0; i < n; ++i)
+        {
+            toneLfo += 1.0 / (fs * 5.0); if (toneLfo > 1.0) toneLfo -= 1.0;
+            const double lvlDb = -34.0 + 26.0 * (0.5 + 0.5 * std::sin (6.283185307 * toneLfo));
+            tonePhase += 6.283185307 * 110.0 / fs; if (tonePhase > 6.283185307) tonePhase -= 6.283185307;
+            const float v = (float) (Decibels::decibelsToGain (lvlDb) * (0.6 * std::sin (tonePhase) + 0.3 * std::sin (2.0 * tonePhase) + 0.1 * std::sin (11.0 * tonePhase)));
+            for (int c = 0; c < nch; ++c) buf.getWritePointer (c)[i] = v;
+        }
     }
 
     const float peakP  = get ("peak") * 0.01f;
@@ -160,18 +173,22 @@ void LALevelerAudioProcessor::processBlock (AudioBuffer<float>& buf, MidiBuffer&
         for (int c = 0; c < nch; ++c)
         {
             float s;
+            const float hb = (h - 0.5f) * 2.f;                    // -1 (Lin) .. 0 (Original) .. +1 (Dist)
+            const float up = jmax (0.f, hb);
             if (tube)
             {
-                const float k = (1.f + h * 5.f) * 0.7f, bias = 0.12f;
+                const float k = (1.f + up * 5.f) * 0.7f, bias = 0.12f;
                 const float t = std::tanh (bias);
                 s = (std::tanh (k * y[c] + bias) - t) / (k * (1.f - t * t));
-                s = y[c] + (s - y[c]) * (0.25f + 0.75f * h);
+                const float amt = hb < 0.f ? 0.25f * (1.f + hb) : 0.25f + 0.75f * hb;
+                s = y[c] + (s - y[c]) * amt;
             }
             else
             {
-                const float k = (1.f + h * 4.f) * 0.7f;
+                const float k = (1.f + up * 4.f) * 0.7f;
                 s = std::tanh (k * y[c]) / k;
-                s = y[c] + (s - y[c]) * (0.10f + 0.90f * h);
+                const float amt = hb < 0.f ? 0.10f * (1.f + hb) : 0.10f + 0.90f * hb;
+                s = y[c] + (s - y[c]) * amt;
             }
             har += (s - y[c]) * (s - y[c]);
             // DC blocker
@@ -203,25 +220,25 @@ const std::vector<LALevelerAudioProcessor::Preset>& LALevelerAudioProcessor::fac
 {
     //            name                       gain peak limit tube  in   out  par   ms   harm  lf
     static const std::vector<Preset> p {
-        { "Initial Preset",                  35,  30, false, true,  0.f, 0.f, 100,  false, 0.25f, 0.f },
-        { "Vocal - Smooth Leveler",          42,  38, false, true,  0.f, 0.f, 100,  false, 0.30f, 2.f },
-        { "Vocal - Intimate Close Mic",      45,  46, false, true,  1.f,-1.f,  85,  false, 0.35f, 3.f },
-        { "Vocal - Hard Limit Presence",     48,  55, true,  false, 0.f,-1.f, 100,  false, 0.20f, 2.f },
-        { "Vocal - Parallel Air",            50,  70, true,  true,  0.f, 0.f,  35,  false, 0.45f, 3.f },
-        { "Bass - Tube Warmth",              44,  42, false, true,  0.f, 0.f, 100,  false, 0.55f, 0.f },
-        { "Bass - Tight Solid State",        40,  50, true,  false, 0.f, 0.f, 100,  false, 0.15f, 4.f },
-        { "Drum Bus - Glue",                 36,  28, false, false, 0.f, 0.f, 100,  false, 0.20f, 5.f },
-        { "Drum Bus - Room Squash",          55,  75, true,  true,  1.f,-2.f,  45,  false, 0.60f, 3.f },
-        { "Acoustic Guitar - Even Out",      40,  35, false, true,  0.f, 0.f, 100,  false, 0.20f, 3.f },
-        { "Electric Guitar - Sustain",       50,  52, false, true,  1.f,-1.f, 100,  false, 0.50f, 2.f },
-        { "Piano - Gentle Leveling",         36,  22, false, false, 0.f, 0.f, 100,  false, 0.10f, 2.f },
-        { "Synth Pad - Hold Steady",         38,  30, false, true,  0.f, 0.f, 100,  false, 0.30f, 0.f },
-        { "Mix Bus - Light 2A",              34,  16, false, true,  0.f, 0.f, 100,  false, 0.15f, 6.f },
-        { "Mix Bus - Clean 3A",              33,  18, false, false, 0.f, 0.f, 100,  false, 0.05f, 6.f },
-        { "M/S - Tame the Mids",             36,  30, false, false, 0.f, 0.f, 100,  true,  0.15f, 4.f },
-        { "Parallel Smash",                  60,  85, true,  true,  2.f,-3.f,  30,  false, 0.70f, 3.f },
-        { "Broadcast Voice",                 50,  60, true,  false, 0.f, 0.f, 100,  false, 0.25f, 4.f },
-        { "Sub Taming (LF Sens)",            38,  40, false, false, 0.f, 0.f, 100,  false, 0.10f, 10.f },
+        { "Initial Preset",                  35,  30, false, true,  0.f, 0.f, 100,  false, 0.625f, 0.f },
+        { "Vocal - Smooth Leveler",          42,  38, false, true,  0.f, 0.f, 100,  false, 0.650f, 2.f },
+        { "Vocal - Intimate Close Mic",      45,  46, false, true,  1.f,-1.f,  85,  false, 0.675f, 3.f },
+        { "Vocal - Hard Limit Presence",     48,  55, true,  false, 0.f,-1.f, 100,  false, 0.600f, 2.f },
+        { "Vocal - Parallel Air",            50,  70, true,  true,  0.f, 0.f,  35,  false, 0.725f, 3.f },
+        { "Bass - Tube Warmth",              44,  42, false, true,  0.f, 0.f, 100,  false, 0.775f, 0.f },
+        { "Bass - Tight Solid State",        40,  50, true,  false, 0.f, 0.f, 100,  false, 0.575f, 4.f },
+        { "Drum Bus - Glue",                 36,  28, false, false, 0.f, 0.f, 100,  false, 0.600f, 5.f },
+        { "Drum Bus - Room Squash",          55,  75, true,  true,  1.f,-2.f,  45,  false, 0.800f, 3.f },
+        { "Acoustic Guitar - Even Out",      40,  35, false, true,  0.f, 0.f, 100,  false, 0.600f, 3.f },
+        { "Electric Guitar - Sustain",       50,  52, false, true,  1.f,-1.f, 100,  false, 0.750f, 2.f },
+        { "Piano - Gentle Leveling",         36,  22, false, false, 0.f, 0.f, 100,  false, 0.550f, 2.f },
+        { "Synth Pad - Hold Steady",         38,  30, false, true,  0.f, 0.f, 100,  false, 0.650f, 0.f },
+        { "Mix Bus - Light 2A",              34,  16, false, true,  0.f, 0.f, 100,  false, 0.575f, 6.f },
+        { "Mix Bus - Clean 3A",              33,  18, false, false, 0.f, 0.f, 100,  false, 0.525f, 6.f },
+        { "M/S - Tame the Mids",             36,  30, false, false, 0.f, 0.f, 100,  true,  0.575f, 4.f },
+        { "Parallel Smash",                  60,  85, true,  true,  2.f,-3.f,  30,  false, 0.850f, 3.f },
+        { "Broadcast Voice",                 50,  60, true,  false, 0.f, 0.f, 100,  false, 0.625f, 4.f },
+        { "Sub Taming (LF Sens)",            38,  40, false, false, 0.f, 0.f, 100,  false, 0.550f, 10.f },
     };
     return p;
 }
@@ -266,15 +283,18 @@ bool LALevelerAudioProcessor::saveUserPreset (const String& name)
     if (clean.isEmpty()) return false;
     auto dir = getUserPresetDir();
     if (! dir.createDirectory().wasOk()) return false;
-    std::unique_ptr<XmlElement> xml (apvts.copyState().createXml());
-    if (xml == nullptr || ! xml->writeTo (dir.getChildFile (clean + ".lalpreset"))) return false;
+    if (! exportPresetTo (dir.getChildFile (clean + ".lalpreset"))) return false;
     currentPresetName = clean;
     return true;
 }
 
 bool LALevelerAudioProcessor::loadUserPreset (const String& name)
 {
-    auto f = getUserPresetDir().getChildFile (name + ".lalpreset");
+    return importPresetFrom (getUserPresetDir().getChildFile (name + ".lalpreset"), true);
+}
+
+bool LALevelerAudioProcessor::importPresetFrom (const File& f, bool applyIt)
+{
     if (auto xml = parseXML (f))
     {
         undoManager.beginNewTransaction();
@@ -284,9 +304,42 @@ bool LALevelerAudioProcessor::loadUserPreset (const String& name)
             for (auto c : vt)      // only restore parameter values, keep host-side identity intact
                 if (auto* p = apvts.getParameter (c.getProperty ("id").toString()))
                     p->setValueNotifyingHost (p->convertTo0to1 ((float) c.getProperty ("value")));
-            currentPresetName = name;
+            if (! applyIt) return true;
+            currentPresetName = f.getFileNameWithoutExtension();
+            presetNote = vt.getProperty ("note", "").toString();
             return true;
         }
+    }
+    return false;
+}
+
+bool LALevelerAudioProcessor::exportPresetTo (const File& f)
+{
+    auto st = apvts.copyState(); st.setProperty ("note", presetNote, nullptr);
+    std::unique_ptr<XmlElement> xml (st.createXml());
+    return xml != nullptr && f.getParentDirectory().createDirectory().wasOk() && xml->writeTo (f);
+}
+
+String LALevelerAudioProcessor::stateToString()
+{
+    auto st = apvts.copyState(); st.setProperty ("note", presetNote, nullptr);
+    if (auto xml = st.createXml()) return xml->toString();
+    return {};
+}
+
+bool LALevelerAudioProcessor::applyStateString (const String& text)
+{
+    if (auto xml = parseXML (text))
+    {
+        auto vt = ValueTree::fromXml (*xml);
+        if (! vt.isValid() || vt.getNumChildren() == 0) return false;
+        undoManager.beginNewTransaction();
+        bool any = false;
+        for (auto c : vt)
+            if (auto* p = apvts.getParameter (c.getProperty ("id").toString()))
+            { p->setValueNotifyingHost (p->convertTo0to1 ((float) c.getProperty ("value"))); any = true; }
+        presetNote = vt.getProperty ("note", "").toString();
+        return any;
     }
     return false;
 }
@@ -305,6 +358,7 @@ void LALevelerAudioProcessor::getStateInformation (MemoryBlock& dest)
 {
     auto st = apvts.copyState();
     st.setProperty ("presetName", currentPresetName, nullptr);
+    st.setProperty ("note", presetNote, nullptr);
     if (auto xml = st.createXml()) copyXmlToBinary (*xml, dest);
 }
 
@@ -316,6 +370,7 @@ void LALevelerAudioProcessor::setStateInformation (const void* data, int size)
         if (vt.isValid())
         {
             currentPresetName = vt.getProperty ("presetName", "Initial Preset").toString();
+            presetNote = vt.getProperty ("note", "").toString();
             apvts.replaceState (vt);
         }
     }
