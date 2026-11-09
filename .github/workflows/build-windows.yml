@@ -1,0 +1,43 @@
+name: Build Comp LA (Windows exe + VST3)
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build -A x64
+
+      - name: Build VST3 + Standalone (Release)
+        run: cmake --build build --config Release --parallel
+
+      - name: Collect files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $vst = Get-ChildItem -Path build -Recurse -Directory -Filter "Comp LA.vst3" | Select-Object -First 1
+          $exe = Get-ChildItem -Path build -Recurse -File -Filter "Comp LA.exe" | Select-Object -First 1
+          if (-not $vst -or -not $exe) { throw "Build output not found" }
+          Copy-Item $vst.FullName -Destination dist -Recurse
+          Copy-Item $exe.FullName -Destination dist
+
+      - name: Make installer (Setup.exe)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; }
+          & $iscc installer\CompLA.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CompLA-Setup-exe
+          path: dist-installer/*.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CompLA-portable-files
+          path: dist
