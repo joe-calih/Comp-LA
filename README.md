@@ -1,4 +1,4 @@
-# Comp LA v2 - by Loops (https://loops.co.ke)
+# Comp LA v2 - by Loops https://loops.co.ke
 Opto-style leveling compressor (2A / 3A style): VST3 plugin + standalone Comp LA.exe + Windows installer.
 
 ## Generate the installer .exe (every time you change the code)
