@@ -71,7 +71,7 @@ void HamburgerButton::paintButton (Graphics& g, bool over, bool down)
     const auto c = b.getCentre();
     g.setColour (Colours::white);
     for (int i = -1; i <= 1; ++i)
-        g.fillRoundedRectangle (c.x - 11.f, c.y + (float) i * 7.f - 1.5f, 22.f, 3.f, 1.5f);
+        g.fillRoundedRectangle (c.x - 8.f, c.y + (float) i * 5.f - 1.f, 16.f, 2.f, 1.f);
 }
 
 void PowerButton::paintButton (Graphics& g, bool, bool)
